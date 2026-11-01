@@ -496,6 +496,7 @@ def status():
     act = active_runs(SID)
     gate = "AUTO" if run else (act[0].get("gate") if act else None)
     run_id = run["run_id"] if run else (act[0].get("run_id") if act else None)
+    started = run.get("started") if run else (act[0].get("started") if act else None)  # 秒，給狀態列算經過時間
     if kind != "collab":
         state = kind
     elif run_id:
@@ -504,7 +505,7 @@ def status():
         undelivered = any(j["status"] != "running" and not j.get("notified") for j in jobs(SID)) if SID else False
         queued = bool(SID) and os.path.exists(os.path.join(sdir(), "pending.json"))
         state = "waiting" if undelivered or queued else "idle"
-    return {"mode": kind, "detail": m, "state": state, "gate": gate,
+    return {"mode": kind, "detail": m, "state": state, "gate": gate, "started": started,
             "weekly_pct": read_quota().get("weekly_pct"), "running": run_id}
 
 

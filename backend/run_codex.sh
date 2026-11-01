@@ -199,7 +199,7 @@ EOF_PY
     preflight
     { echo "## 追問（僅此一輪）"; echo; cat "$q"; echo; echo "請依同一個 JSON schema 回答：只列出與追問相關的內容，並說明你維持或修正原判斷的依據。"; } > "$work/followup.md"
     [[ "$REVIEWER_MODE" == user ]] && chown "$REV_USER:$REV_USER" "$work/followup.md"
-    mark_active "$run_id" "$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['gate'])" "$work/meta.json")"
+    mark_active "$run_id" FOLLOWUP
     run_codex "$work" "$work/followup.md" followup "$thread"
     python3 -c "import json,sys;p=sys.argv[1];d=json.load(open(p));d['followups']=1;json.dump(d,open(p,'w'),ensure_ascii=False,indent=2)" "$work/meta.json"
     publish "$work" "$run_id" followup.md followup.json

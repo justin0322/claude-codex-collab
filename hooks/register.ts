@@ -6,7 +6,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 //   每 30 秒       檢查背景審查；完成就交給 Claude 驗證（同一串最多 max_rounds 輪）
 //   tool.call Bash （g2_guard 開啟時）指定前綴的 branch 上開始訓練前，HEAD 要有 G2 審查紀錄
 //   /collab        status｜off｜on（只影響這個對話）｜pause｜resume（全部對話）｜skip-g2
-//   狀態列         Codex：● 協作中（討論／自動審查／G1–G4）／等待中／閒置／關閉／⚠ 關閉（暫停／額度）
+//   狀態列         Codex：協作中(Reviewing code... 3m)／等待中／閒置／關閉／⚠ 關閉(暫停／額度)
 
 const TICK_MS = 30_000
 // 粗篩，與 collab.py 的 TRAIN_RE 相同：只認指令位置上的訓練指令
@@ -14,7 +14,7 @@ const TRAIN_RE =
   /(?:^|[;&|(\n]|\bnohup\b|\btime\b|\bsetsid\b)\s*(?:\w+=\S*\s+)*(?:torchrun\b|accelerate\s+launch\b|deepspeed\b|(?:\S*\/)?python[0-9.]*\s+(?:-\S+\s+)*\S*train\S*\.py\b|(?:bash|sh)\s+\S*(?:run_(?!codex\b)|train)\S*\.sh\b|\.\/\S*(?:run_(?!codex\b)|train)\S*\.sh\b)/
 
 type Py = { exitCode: number; stdout: string; stderr: string }
-// state：working｜waiting｜idle｜off｜solo；gate：AUTO／CONSULT／G1–G4
+// state：working｜waiting｜idle｜off｜solo；gate：AUTO／CONSULT／G1–G4／FOLLOWUP；started：秒
 type St = {
   mode: string
   detail: string
@@ -22,8 +22,18 @@ type St = {
   running: string | null
   state?: string
   gate?: string | null
+  started?: number | null
 }
-const GATE_NAMES: Record<string, string> = { AUTO: '自動審查', CONSULT: '討論' }
+// Codex 正在做什麼（狀態列括號裡的字）
+const ACTIVITY: Record<string, string> = {
+  G1: 'Reviewing design',
+  G2: 'Reviewing code',
+  G3: 'Rechecking numbers',
+  G4: 'Reviewing claims',
+  CONSULT: 'Discussing',
+  AUTO: 'Auto-reviewing',
+  FOLLOWUP: 'Follow-up',
+}
 type Tick = {
   finished: { run_id: string; status: string; round: number; error: string }[]
   launched: string | null
@@ -84,26 +94,36 @@ function stateOf(s: St): string {
   return s.state ?? (s.mode !== 'collab' ? s.mode : s.running ? 'working' : 'idle')
 }
 
-function gateName(s: St): string {
-  return s.gate ? `（${GATE_NAMES[s.gate] ?? s.gate}）` : ''
+// 經過時間：<1m、3m、1h05m（狀態每 30 秒更新一次，精確到分鐘就夠）
+function elapsed(sec: number): string {
+  const m = Math.floor(Math.max(0, sec) / 60)
+  if (m < 1) return '<1m'
+  if (m < 60) return `${m}m`
+  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m`
 }
 
-// 狀態列：● 協作中＝Codex 正在跑；等待中＝審查完成還沒交給 Claude，或有變更排隊等補審；
+// 協作中(Reviewing code... 3m)；省略號用 ASCII 的 ...，終端機寬度才固定
+function working(s: St, nowSec: number): string {
+  const act = (s.gate && ACTIVITY[s.gate]) || 'Working'
+  return `協作中(${act}...${s.started ? ` ${elapsed(nowSec - s.started)}` : ''})`
+}
+
+// 狀態列：協作中(...)＝Codex 正在跑；等待中＝審查完成還沒交給 Claude，或有變更排隊等補審；
 // 閒置＝開著協作但沒有工作；關閉＝這個對話 /collab off；⚠ 關閉＝全域暫停或額度不足
-function label(s: St | undefined): string | undefined {
+function label(s: St | undefined, nowSec: number): string | undefined {
   if (!s) return undefined
   const st = stateOf(s)
-  if (st === 'working') return `Codex：● 協作中${gateName(s)}`
+  if (st === 'working') return `Codex：${working(s, nowSec)}`
   if (st === 'waiting') return 'Codex：等待中'
   if (st === 'idle') return 'Codex：閒置'
   if (st === 'off') return 'Codex：關閉'
-  return `Codex：⚠ 關閉（${/pause|暫停/i.test(s.detail) ? '暫停' : '額度'}）`
+  return `Codex：⚠ 關閉(${/pause|暫停/i.test(s.detail) ? '暫停' : '額度'})`
 }
 
-function describe(s: St): string {
+function describe(s: St, nowSec: number): string {
   const reason = s.detail.replace(/^(solo|off):/, '')
   const st = stateOf(s)
-  if (st === 'working') return `● 協作中${gateName(s)}${s.running ? `：${s.running}` : ''}`
+  if (st === 'working') return `${working(s, nowSec)}${s.running ? `：${s.running}` : ''}`
   if (st === 'waiting') return '等待中（審查完成、待 Claude 處理，或有變更排隊等補審）'
   if (st === 'idle') return '閒置（開著協作，目前沒有工作）'
   if (st === 'off') return `關閉（${reason}）`
@@ -130,7 +150,7 @@ async function tick($: EngineInterface): Promise<void> {
       }
     }
     if (out.launched) $.ui.toast('Codex 開始補審先前累積的變更')
-    $.ui.status(label(out.status))
+    $.ui.status(label(out.status, (await $.clock.now()) / 1000))
   } catch {
     // 這一輪失敗就等下一輪
   } finally {
@@ -182,7 +202,7 @@ export const register: Register = (on, options) => {
     try {
       const out = parse<End>(await py($, ['turn-end', '--sid', sid]))
       if (out?.message && out.action !== 'nochange') $.ui.toast(out.message)
-      if (out?.action === 'launched') $.ui.status('Codex：● 協作中（自動審查）')
+      if (out?.action === 'launched') $.ui.status('Codex：協作中(Auto-reviewing... <1m)')
     } catch {
       // 失敗就不送審
     }
@@ -222,7 +242,7 @@ export const register: Register = (on, options) => {
     const s = parse<St>(await py($, ['status', '--sid', sid]))
     if (!s) return { text: 'collab.py 沒有回應' }
     return {
-      text: `codex-collab：${describe(s)}｜Codex 週額度 ${s.weekly_pct ?? '?'}%（>= ${opts.auto_limit ?? 90}% 停止自動協作）`,
+      text: `codex-collab：${describe(s, (await $.clock.now()) / 1000)}｜Codex 週額度 ${s.weekly_pct ?? '?'}%（>= ${opts.auto_limit ?? 90}% 停止自動協作）`,
     }
   })
 }
