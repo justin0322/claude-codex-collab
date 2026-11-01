@@ -1,0 +1,52 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "findings", "numbers", "not_checked", "files_read"],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "三到五句的總評（繁體中文）"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "severity", "category", "location", "claim", "evidence", "how_to_verify"],
+        "properties": {
+          "id": { "type": "string", "description": "F1, F2, ..." },
+          "severity": { "type": "string", "enum": ["critical", "major", "minor", "question"] },
+          "category": { "type": "string", "description": "例如 leakage, metric, baseline, split, label-mapping, overclaim, reproducibility, bug, security" },
+          "location": { "type": "string", "description": "檔案:行號，或文件章節；沒有就寫 n/a" },
+          "claim": { "type": "string", "description": "問題是什麼" },
+          "evidence": { "type": "string", "description": "依據：程式片段、指令與輸出、數字" },
+          "how_to_verify": { "type": "string", "description": "第三方要怎麼確認這個問題存在" }
+        }
+      }
+    },
+    "numbers": {
+      "type": "array",
+      "description": "G3 必填：你自己重算出的每個數字；其他關卡可留空陣列",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "value", "source", "method"],
+        "properties": {
+          "name": { "type": "string", "description": "例如 test split seed42 accuracy" },
+          "value": { "type": "string" },
+          "source": { "type": "string", "description": "用了哪些原始檔" },
+          "method": { "type": "string", "description": "怎麼算的（指標定義、平均方式）" }
+        }
+      }
+    },
+    "not_checked": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "審查範圍內但沒有檢查到的部分"
+    },
+    "files_read": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

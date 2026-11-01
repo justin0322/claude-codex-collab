@@ -1,0 +1,5 @@
+{
+  "name": "claude-codex-collab",
+  "owner": { "name": "justin0322" },
+  "plugins": [{ "name": "codex-collab", "source": "./", "description": "Claude Code × Codex 全自動協作：改檔後背景盲審、討論時徵詢 Codex、額度不足自動切回 Claude 單獨" }]
+}

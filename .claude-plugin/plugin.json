@@ -1,0 +1,66 @@
+{
+  "name": "codex-collab",
+  "version": "0.1.0",
+  "description": "Claude Code × Codex 全自動協作：改檔後背景送 Codex 盲審、研究討論時徵詢 Codex 的獨立意見、額度不足自動切回 Claude 單獨、同一串最多來回 N 輪",
+  "author": { "name": "justin0322" },
+  "license": "MIT",
+  "repository": "https://github.com/justin0322/claude-codex-collab",
+  "keywords": ["codex", "code-review", "research", "cross-check"],
+  "userConfig": {
+    "repo_root": {
+      "type": "string",
+      "title": "啟用協作的 repo",
+      "description": "只在這個 git repo 裡的 session 啟用（絕對路徑）；留空＝任何 git repo 都啟用",
+      "default": ""
+    },
+    "reviewer_mode": {
+      "type": "string",
+      "title": "Codex 唯讀方式",
+      "description": "sandbox：用 Codex 內建的唯讀沙箱（一般電腦）；user：用另一個低權限 Linux 帳號（沙箱無法啟動的 Docker 容器，需要 root）",
+      "options": ["sandbox", "user"],
+      "default": "sandbox"
+    },
+    "reviewer_user": {
+      "type": "string",
+      "title": "審查帳號（user 模式）",
+      "description": "reviewer_mode=user 時執行 Codex 的 Linux 帳號，建立方式見 README",
+      "default": "codexrev"
+    },
+    "review_dir": {
+      "type": "string",
+      "title": "審查紀錄資料夾",
+      "description": "相對於 repo 根目錄；這個資料夾裡的變更不會觸發審查",
+      "default": "docs/cross-check"
+    },
+    "auto_review": {
+      "type": "boolean",
+      "title": "改檔後自動審查",
+      "description": "回合結束時，若程式或文件有變更就在背景送 Codex 審查",
+      "default": true
+    },
+    "auto_limit": {
+      "type": "number",
+      "title": "停止自動協作的週額度 %",
+      "description": "Codex 週額度用到這個百分比就切回 Claude 單獨（手動的 G1–G4 仍可用到 100%）",
+      "default": 90
+    },
+    "max_rounds": {
+      "type": "number",
+      "title": "同一串最多來回幾輪",
+      "description": "超過就不再送審，改成爭議卡交給使用者裁決",
+      "default": 2
+    },
+    "g2_guard": {
+      "type": "boolean",
+      "title": "訓練前 G2 守門",
+      "description": "在指定前綴的 branch 上執行訓練指令時，HEAD 要有 G2 審查紀錄",
+      "default": false
+    },
+    "g2_branch_prefix": {
+      "type": "string",
+      "title": "G2 守門的 branch 前綴",
+      "description": "例如 exp/",
+      "default": "exp/"
+    }
+  }
+}

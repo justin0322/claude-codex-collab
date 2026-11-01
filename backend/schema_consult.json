@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "recommendation", "options", "risks", "facts_checked", "questions_for_user", "files_read"],
+  "properties": {
+    "summary": { "type": "string", "description": "一兩句結論（繁體中文）" },
+    "recommendation": { "type": "string", "description": "你建議的做法與理由" },
+    "options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["option", "pros", "cons", "cost"],
+        "properties": {
+          "option": { "type": "string" },
+          "pros": { "type": "string" },
+          "cons": { "type": "string" },
+          "cost": { "type": "string", "description": "時間、GPU、風險的大概成本" }
+        }
+      }
+    },
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "facts_checked": {
+      "type": "array",
+      "description": "你親自查證過的事實，附上來源（檔案:行號或指令）",
+      "items": { "type": "string" }
+    },
+    "questions_for_user": { "type": "array", "items": { "type": "string" } },
+    "files_read": { "type": "array", "items": { "type": "string" } }
+  }
+}
