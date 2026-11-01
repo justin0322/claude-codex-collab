@@ -17,7 +17,15 @@ A Claude Code mod that has OpenAI Codex review Claude's work blind and read-only
 
 手動關卡（`cross-check` skill）：**G1** 設計審（看結果前）、**G2** 程式審（執行前）、**G3** 從原始輸出獨立重算數字、**G4** 結論審（寫進論文或簡報前）。
 
-狀態列會顯示 `Codex：協作中`／`● 審查中`／`協作關閉`／`⚠ Claude 單獨`。
+狀態列會顯示這個對話的 Codex 狀態：
+
+| 狀態列 | 意思 |
+|---|---|
+| `Codex：● 協作中（討論）`／`（自動審查）`／`（G1）`… | Codex 正在工作，括號是哪一種 |
+| `Codex：等待中` | 審查完成、還沒交給 Claude 處理，或有變更排隊等補審 |
+| `Codex：閒置` | 開著協作，目前沒有工作 |
+| `Codex：關閉` | 這個對話用 `/collab off` 關掉了 |
+| `Codex：⚠ 關閉（暫停／額度）` | 全部對話暫停（`/collab pause`），或 Codex 額度不足 |
 
 ## 需求
 - Claude Code（支援 mod／hooks module 的版本）

@@ -458,13 +458,54 @@ def skip_g2():
     return head
 
 
+def active_runs(sid=None):
+    """run_codex.sh 執行中留下的標記（CONSULT／G1–G4／追問）；程序已不在的標記順手清掉。"""
+    out = []
+    for p in glob.glob(os.path.join(STATE, "active", "*.json")):
+        a = jload(p)
+        pid = (a or {}).get("pid")
+        if not a or not pid or not pid_alive(pid) or now() - a.get("started", 0) > 6 * 3600:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+            continue
+        if sid is None or a.get("sid") == sid:
+            out.append(a)
+    return out
+
+
+def pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 def status():
+    """state：working（Codex 正在跑）｜waiting（審查完成還沒交給 Claude，或有變更排隊等補審）｜
+    idle（閒置）｜off（這個對話關閉）｜solo（全域暫停或額度不足）；gate：AUTO／CONSULT／G1–G4"""
     m = mode()
+    kind = m.split(":", 1)[0]
     run = running_job()
     if run and SID and run.get("sid") != SID:
         run = None
-    return {"mode": m.split(":", 1)[0], "detail": m,
-            "weekly_pct": read_quota().get("weekly_pct"), "running": run["run_id"] if run else None}
+    act = active_runs(SID)
+    gate = "AUTO" if run else (act[0].get("gate") if act else None)
+    run_id = run["run_id"] if run else (act[0].get("run_id") if act else None)
+    if kind != "collab":
+        state = kind
+    elif run_id:
+        state = "working"
+    else:
+        undelivered = any(j["status"] != "running" and not j.get("notified") for j in jobs(SID)) if SID else False
+        queued = bool(SID) and os.path.exists(os.path.join(sdir(), "pending.json"))
+        state = "waiting" if undelivered or queued else "idle"
+    return {"mode": kind, "detail": m, "state": state, "gate": gate,
+            "weekly_pct": read_quota().get("weekly_pct"), "running": run_id}
 
 
 def config_sh():

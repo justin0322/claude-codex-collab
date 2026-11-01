@@ -1,6 +1,6 @@
 {
   "name": "codex-collab",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Claude Code × Codex 全自動協作：改檔後背景送 Codex 盲審、研究討論時徵詢 Codex 的獨立意見、額度不足自動切回 Claude 單獨、同一串最多來回 N 輪",
   "author": { "name": "justin0322" },
   "license": "MIT",

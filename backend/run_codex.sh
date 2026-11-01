@@ -24,6 +24,16 @@ die() { echo "[codex-collab] 失敗：$1" >&2; exit "${2:-1}"; }
 cfg="$($COLLAB config-sh)" || die "讀不到這個 session 的設定：$cfg"
 eval "$cfg"   # REPO OUT_ROOT REVIEWER_MODE REV_USER REV_HOME STATE
 
+# 執行期間留下標記，讓狀態列知道 Codex 正在跑（CONSULT／G1–G4／追問；AUTO 另有 jobs 紀錄）。
+# 程序結束時 trap 自動移除；意外中斷留下的標記由 collab.py 依 pid 清掉。
+mark_active() {  # $1=run_id  $2=關卡
+  mkdir -p "$STATE/active"
+  ACTIVE_FILE="$STATE/active/$1.$$.json"
+  printf '{"run_id": "%s", "gate": "%s", "sid": "%s", "pid": %d, "started": %d}\n' \
+    "$1" "$2" "$COLLAB_SID" "$$" "$(date +%s)" > "$ACTIVE_FILE"
+  trap 'rm -f "$ACTIVE_FILE"' EXIT
+}
+
 as_rev() {
   if [[ "$REVIEWER_MODE" == user ]]; then
     runuser -u "$REV_USER" -- env -i HOME="$REV_HOME" CODEX_HOME="$REV_HOME/.codex" \
@@ -161,6 +171,7 @@ case "$cmd" in
     { echo; echo "## 審查說明（brief）"; echo; cat "$brief"; } >> "$work/prompt.md"
     if [[ "$gate" == CONSULT ]]; then cp "$BACKEND/schema_consult.json" "$work/schema.json"; else cp "$BACKEND/schema.json" "$work/schema.json"; fi
     [[ "$REVIEWER_MODE" == user ]] && chown -R "$REV_USER:$REV_USER" "$work"
+    mark_active "$run_id" "$gate"
     echo "[codex-collab] $run_id：branch=$branch HEAD=$head base=$base effort=$EFFORT mode=$REVIEWER_MODE，Codex 執行中（逾時 ${TIMEOUT_SEC}s）…"
     run_codex "$work" "$work/prompt.md" result
     thread="$(extract_thread "$work/result.events.jsonl" || true)"
@@ -188,6 +199,7 @@ EOF_PY
     preflight
     { echo "## 追問（僅此一輪）"; echo; cat "$q"; echo; echo "請依同一個 JSON schema 回答：只列出與追問相關的內容，並說明你維持或修正原判斷的依據。"; } > "$work/followup.md"
     [[ "$REVIEWER_MODE" == user ]] && chown "$REV_USER:$REV_USER" "$work/followup.md"
+    mark_active "$run_id" "$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['gate'])" "$work/meta.json")"
     run_codex "$work" "$work/followup.md" followup "$thread"
     python3 -c "import json,sys;p=sys.argv[1];d=json.load(open(p));d['followups']=1;json.dump(d,open(p,'w'),ensure_ascii=False,indent=2)" "$work/meta.json"
     publish "$work" "$run_id" followup.md followup.json
